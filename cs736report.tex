@@ -312,8 +312,79 @@ As a final note, we consider the case of SSDs.  While it is true that SSDs are g
 %%%%%%%%%%%%%%%%%%%%%%%%%
 \section{HDFS and ext4: a case study}
 
+\subsection{HBase+HDFS background}
+As mentioned above, ext4 now serves not only as a consumer file system but also as the backbone of many larger corporate or distributed file systems; Google, for example, makes use of ext4 as the underlying file system of their servers running the Google File System (GFS), a distributed file system tailored to their needs.  Though GFS is not publicly available, the Apache Hadoop project has established a similar file system known as the Hadoop File System (HDFS).  The Hadoop File System writes data to one or more data servers in the form of chunk files which are generally several dozen MB in size.  A separate server, the 'namenode', handles the mapping between chunks and files within the FS. 
+ 
+In addition to HDFS, Apache provides the HBase project, a distributed database designed to run on top of an HDFS installation and provide much of the same functionality as Google's BigData database software.  Although HBase, like HDFS, is designed to rely on cross-server duplication to provide durability guarantees, the HBase community has recognized the need for programmers to be able to guarantee data has been durably written to at least one disk; thus, HBase is moving to make use of HDFS’ hsync() call, which serves as an HDFS equivalent of the POSIX fsync() call by synchronously committing data to the disk.
+ 
+Unfortunately, this change has not yet been fully implemented by the community, although it is acknowledged as a critical issue.  In the discussions below, we make use of a microbenchmark designed to simulate the act of multiple clients writing simultaneously to an HDFS share as HBase might.
+
+\subsection{ext4 problem and proposed change}
+In performing big-data work through HBase, we believe it is not unreasonable to expect that multiple nodes in a network may send significant amounts of data to a single HBase node concurrently.  If the designers of the system desire durability guarantees, they may make use of HDFS' hsync() capabilities, which in turn rely on ext4's fsync() implementation.  We thus consider how ext4 handles the case where many concurrent, large appends are being sent to the HDFS server.
+ 
+In standard ext4, the file system attempts to group together large files by placing them in the same block group.  However, this behavior fails in our case; when multiple large files are concurrently, durably appended to, ext4 winds up interleaving the writes on the disk (see figure [n]).  Although ext4's preallocation policies attempt to mitigate the issue by providing 8MB extents to each allocation, having many clients writing at once results in significant interleaving between files; this not only has immediate implications for performance, but runs the risk of increased framgentation as the file system ages.
+ 
+We provide a simple policy change; rather than group large files together in the same block group, we attempt to place large files in a different group from the previous large write.  Our hope is that in doing so, we are able to give these large files room to grow without running the risk of interleaving.
+
+\subsection{Evaluation}
+As mentioned above, we originally hoped to make use of HBase functionality to provide a more realistic benchmark; unfortunately, as HBase support for durable writing has yet to be implemented , we were forced to create a microbenchmark of our own.
+ 
+The microbenchmark first creates five processes that each write 32 64 MB files to the HDFS store, durably appending 1 MB at a time.  Once this is complete, five reader processes are launched which each then read back 32 of the files, spread across the disk.  This I/O is wholly sequential, in the hopes of matching common use cases for big data.
+ 
+For these benchmarks, we made use of a machine running Ubuntu 12.04 with modified and unmodified Linux kernel 3.2.17.  The machine had a four-core Intel i5 processor clocked at 1.7GHz; the hard drive used was a Seagate SRD0SP0 with a rotation rate of 5400 RPM.  In addition, we use Hadoop version 2.2.0 running on a single machine, rather than a distributed setup, to examine the results of multiple writes hitting the same server simultaneously.
+ 
+Our results are presented in the figures above.  In figure [A], we see that with the default ext4 policy HDFS' chunk files become heavily, if roughly evenly, interleaved on the disk.  Figure [B] shows that with our change they are each allocated an appropriately-large extent and display minimal interleaving.  Although disk bandwidth dominates in situations of large sequential I/O, our new layout still provides a noticeable improvement in read times; reading back the files through those five threads takes an average of 647.23 seconds without our change (for a throughput of 126.57 Mb/s) and 595.40 seconds with (a throughput of 137.59 Mb/s), an 8.0\%  increase in speed (see figure [C]).  We suspect that in addition to the reduced number of seeks, the strong contiguity of the files enables ext4 and the hard disk to make better I/O scheduling decisions.
+
+\subsection{Influence to general workload (general benchmarks)}
+We acknowledge the limitations of such a benchmark; our policy change is designed precisely for these sorts of HDFS workloads.  Nevertheless, we were curious as to how our changes affected more general workloads when applied to ext4.
+ 
+We made use of three different popular disk benchmarks: filebench's varmail and fileserver benchmarks, and the Postmark benchmark.  In the case of varmail and fileserver, we also varied the sizes of the files involved.
+ 
+Our results are summarized in the figures above.  For the filebench benchmarks – that is, varmail and fileserver - we define the benchmark sizes as follows:
+
+\begin{itemize}
+	\item The 'default' benchmark is a run with the default settings for each benchmark.  In the varmail case, this is 1,000 files with a mean filesize of 16KB; in the fileserver case, this is 10,000 files with a mean filesize of 128KB.
+
+	\item The 'medium' benchmark is a run with 500 files of an average 10 MB size,
+
+	\item The 'large' benchmark is a run with 400 files of an average 40 MB size.
+\end{itemize}
+
+We present our results in the figures above.  We see a slight improvement in performance with our change on the large loads, a significant (13.5\%) decrease in performance on the varmail medium load, and significant decreases in performance on the default loads (13.3\% for varmail, 12.9\% for fileserv). 
+ 
+For the postmark benchmark, we defined a run with 200 files ranging between 1 and 64 MB in size, which we then performed 1000 transactions on.  Again, we see our change has caused some loss in speed – namely, a 6.0\% decrease in read throughput and a 6.5\% decrease in write throughput.
+ 
+Although time constraints prevent us from performing a more thorough analysis of these results, we suspect that these benchmarks may not necessarily make heavy use of the fsync() command; thus, ext4 is more free to group I/O as it desires.  In the standard ext4 setup, this would enable it to group large files in the same block group without running the risk of fragmentation; however, with our change, these files would be placed in a separate block group, thus causing additional seek time. [12]  We are uncertain as to why we see significant performance decreases in the default, small-file case for filebench; perhaps this serves as a warning that even a simple policy change can have unforeseen consequences.
 
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Future work}
+Our work with ext4 has served largely as a survey and not as a comprehensive classification or rewrite.  A natural further step to take along this line of research would be to not only continue investigation of ext4 block allocation policies but to define a meaningful classification for its various facets which could then be used to more objectively compare its strategies with those of competing file systems.
+ 
+ext4 itself could also make use of a more detailed survey or classification.  By commenting source code or creating documentation to better explain the various facets of ext4's block allocation policy, we would hope that developers would have a better grasp on how to design their programs to make best use of ext4, or to have a better idea of what to change in ext4 if they desire a more fine-tuned solution.
+ 
+Finally, as we have discussed above, ext4's existing policies are yet imperfect, be that for specific cases (HDFS) or in more general ones (small file CPU affinity).  More subtle alterations to ext4 policy may yet provide better block layout and performance.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Conclusions}
+ext4 is a complicated beast.  In making the most fundamental decision of a file system – where to place data on the disk – it takes into account a variety of factors and applies a number of complicated, if imperfect, policies to make its choice.  Ideally, ext4's policies would be open and easily-understandable; barring that, we hope they would at least be comprehensive and consistent.  We find them to be neither.  The sheer number of factors that go into determining block layout make ext4's policy a black box to users, and its behavior displays remarkable inconsistency compared to competing file systems such as XFS and Btrfs.
+ 
+We find the behavior of ext4 and the results of these policies particularly concerning when we consider that ext4 is today being used beyond the confines of a basic user file system.  As ext4 is used in advanced systems such as distributed file systems, issues of policy seem likely to rear their heads in increasingly complicated and concerning ways.  Our investigation of HDFS's work case and how it interacts with ext4 leads to a simple policy change that, while helpful in HDFS' case, provides mixed results with more general workloads.  This result serves as a reminder both of the importance and the subtlety of policy decisions.
+ 
+We do not mean to utterly disparage ext4.  It is complicated in the hopes of serving many purposes, and issues such as HDFS layout could be forgiven, given they fall outside of the scope of a traditional file system.  But its labyrinth policy decisions make understanding it a challenge, and adapting to it even more of one.  We hope that in the future, be it in later ext4 revisions or in different file systems altogether, developers recall that policy is as much a first-class citizen of design as implementation – and that users of their system desire and deserve a well-defined policy.
 
 
 
