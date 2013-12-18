@@ -31,13 +31,13 @@
 %\hyphenation{op-tical net-works semi-conduc-tor pre-fe-tch
 %             log-struc-tured}
              
-%\usepackage[english]{babel}
-%\usepackage{blindtext}
-%
-%\usepackage{etoolbox}
-%\makeatletter
-%\patchcmd{\maketitle}{\@copyrightspace}{}{}{}
-%\makeatother
+\usepackage[english]{babel}
+\usepackage{blindtext}
+
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd{\maketitle}{\@copyrightspace}{}{}{}
+\makeatother
 
 
 
@@ -94,14 +94,42 @@ Nathan Deisinger, Jun He\\
 
 \maketitle
 \begin{abstract}
-We discuss the block allocation policies of ext4, a widely-used commodity filesystem. In doing so we explain how much of ext4's policy contains subtle effects that we suspect can degrade layout and performance.  Furthermore, we discuss how these policies are mismatched with modern uses of ext4 such as using it as the basis of a distributed file system, and provide a policy change that improves performance in this case.  Our work suggests that ext4 policy would be well-served by significant refinement.
+We discuss the block allocation policies of ext4,
+ a widely-used commodity filesystem. In doing so 
+ we explain how much of ext4's policy contains 
+ subtle effects that we suspect can degrade layout 
+ and performance.  Furthermore, we discuss how these 
+ policies are mismatched with modern uses of ext4 
+ such as using it as the basis of a distributed file 
+ system, and provide a policy change that improves 
+ performance in this case.  Our work suggests that 
+ ext4 policy would be well-served by significant 
+ refinement.
 \end{abstract}
 
 %\keywords{Block allocation, ext4, file system} % NOT required for Proceedings
 
 \section{Introduction}
-The ext4 file system is a well-established commodity filesystem which builds upon the previous ext3 and ext2 filesystems and serves as the default in many Linux distributions, including the common consumer Ubuntu distribution.  In addition, as companies have come to use commodity hardware and software to build large-scale systems, ext4 has begun to see use as an underpinning of distributed file systems in corporate or research environments.
-It is thus desirable that ext4 provide strong performance in a variety of situations.  Though there are many components to a filesystem that decide performance, a significant piece of the puzzle is the file system's block allocation policy – where on the disk it places data blocks for files.  Failure to lay out files in a contiguously or in line with logical file layout can lead to additional seeks due to fragmentation, reducing performance.
+The ext4 file system is a well-established 
+commodity filesystem which builds upon the 
+previous ext3 and ext2 filesystems and serves 
+as the default in many Linux distributions, 
+including the common consumer Ubuntu distribution.
+In addition, as companies have come to use 
+commodity hardware and software to build 
+large-scale systems, ext4 has begun to see 
+use as an underpinning of distributed file 
+systems in corporate or research environments.
+It is thus desirable that ext4 provide strong 
+performance in a variety of situations.  Though 
+there are many components to a filesystem that 
+decide performance, a significant piece of the 
+puzzle is the file system's block allocation 
+policy - where on the disk it places data blocks
+for files.  Failure to lay out files in a 
+contiguously or in line with logical file layout 
+can lead to additional seeks due to fragmentation, 
+reducing performance.
  
 We chose to investigate ext4's block allocation policies in the hopes that they would prove to be well-defined and effective, so that programmers working on top of ext4 would be able to take advantage of ext4's behavior.  Unfortunately, we find that ext4's policies are complicated and not necessarily well-defined; for example, examination of the source code finds suggestions that aspects of ext4 policy are ad-hoc and only obscurely exposed to the user.
 \footnote{ See http://pastebin.com/8iedq5ua for some of the source code; we could put one in as a figure.  Caption could be something like ``An excerpt from ext4's block allocation code.  The developers acknowledge a number of remaining policy issues'' for the first one and ``An excerpt from ext4's block allocation code.  We see little justification for the cutoffs used in this table, only a weak question of ``should this be tunable?''''}
@@ -112,7 +140,7 @@ Examining ext4's policy in more detail reveals that a multitude of factors play 
  
 Finally, we focus our efforts and provide an example of how ext4 policy can affect a higher-level system.  We present the case of running the distributed Hadoop File System (HDFS) on top of ext4 and discuss how ext4's policies can degrade performance in such a system.  Though our proposed policy change is specialized, it provides recognizable improvement in the HDFS use case; however, it does stumble in more generalized benchmarks.  We believe this serves as an example of the difficulties of policy decisions and the need to maintain well-defined, understandable policies.
  
-The rest of the paper continues as follows.  Section 2 provides an overview of related work on block allocation and ext4 policy.  Section 3 discusses the structure of ext4 as it relates to block allocation, as well as some high-level policies ext4 attempts to implement.  Section 4 discusses our methodology for studying general block allocation in ext4.  Section 5 compares ext4 to other file systems and discusses issues we have uncovered in ext4's block allocation policy.  Section 6 presents a concrete change to policy (the aforementioned HDFS case) and corresponding results.  Section 7 discusses future work and section 8 concludes.
+The rest of the paper continues as follows.  Section~\ref{sec:Related-work} provides an overview of related work on block allocation and ext4 policy.  Section~\ref{sec:ext4-background} discusses the structure of ext4 as it relates to block allocation, as well as some high-level policies ext4 attempts to implement.  Section~\ref{sec:Analyzer-framework} discusses our methodology for studying general block allocation in ext4.  Section~\ref{sec:Issues-in-ext4-policy} compares ext4 to other file systems and discusses issues we have uncovered in ext4's block allocation policy.  Section\ref{sec:HDFS-and-ext4-a-case-study} presents a concrete change to policy (the aforementioned HDFS case) and corresponding results.  Section~\ref{sec:Future-work} discusses future work and section \ref{sec:Conclusions} concludes.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -123,6 +151,7 @@ The rest of the paper continues as follows.  Section 2 provides an overview of r
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Related work}
+\label{sec:Related-work}
 \subsection{Parallels between memory allocation and ext4 disk allocation}
 The potential for similar strategies being reused between disk allocation and memory allocation has been recognized in past work.  Many memory allocation mechanisms have two layers: a 'slab allocator' and a 'buddy allocator'.  The slab allocator can improve allocation efficiency and reduce internal fragmentation; within the allocator, a cache is defined which serves as storage for a certain type, such as semaphores, files and so on.  A 'slab' is taken to be the unit of space that a cache increases or shrinks by; generally, it consists of one or more pages. To reduce fragmentation, there are two kinds of slabs - small slabs and big slabs.  A small slab is exactly one page and is used for memory objects that is less than 1/8 of a page; if the object is larger, big slabs that can be more than one page are used\cite{bonwick1994slab}.
  
@@ -163,6 +192,7 @@ Ext4 has also been compared to Btrfs, a modern file system which makes use of B+
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%
 \section{ext4 background}
+\label{sec:ext4-background}
 \subsection{Data structure}
 Ext4 builds off of the work of the previous ext file systems.  It carries over several of the fundamental data structures introduced in those systems, such as the superblock, bitmaps for block and inode allocation, and inode tables.  As in ext2 and ext3, the superblock maintains global information (such as block size) needed by the FS, and block and inode bitmaps indicate free blocks and entries in the inode tables, respectively.  In addition, the disk is divided into 'block groups' of a size defined in the superblock; in a default ext4 system with 4KB blocks, each block group is 16 MB.
  
@@ -190,6 +220,7 @@ In tandem delayed allocation, ext4 also attempts to reduce I/O traffic and fragm
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Analyzer framework}
+\label{sec:Analyzer-framework}
 In order to examine ext4's block allocation policies, we needed to conduct a variety of file experiments.  In order to automate this process, we have built a framework designed to enable quick definition and execution of experiments; see Figure~\ref{fig:buddy-cache-prealloc}.
 
 \begin{figure}[ht]
@@ -202,15 +233,15 @@ In order to examine ext4's block allocation policies, we needed to conduct a var
 
 The Workload Generator generates workloads and save them to files formatted as one operation per line. Each operation is represented as:
 
-pid;operation;filepath;parameters
+\emph{pid;operation;filepath;parameters}
 
-For example, 0;write;./dir.001/file002;10;20 means ``the first process writes 20 bytes to offset 10 of ./dir.001/file002''
+For example, \emph{0;write;./dir.001/file002;10;20} means ``the first process writes 20 bytes to offset 10 of ./dir.001/file002''
 
 The Workload Player takes the workload files as input. It parses each line, executes the operations, and logs any errors or warnings to help ensure correctness.  To help speed up the process, workload files are often saved to a temporary file system in RAM and read by the player from there.
  
 We separate the Workload Generator and Workload Player for flexibility. The generator is written in Python; the large number of packages available for the language make it simple to generate new workloads The player is written in C++ and makes use of MPI (Message Passing Interface). Using C++ allows us to interact with the operating system directly, whileMPI provides convenient synchronization between processes. Although it would be possible to combine the generator and player in a single C/C++ program, this approach would limit our flexibility because prototyping in C/C++ is more difficult and interacting with the test manager (written in Python) would require additional glue code.
  
-The FS Manipulator is used to prepare the file system for testing; it handles tasks such as formatting, fragmenting, and aging the file system. The FS Monitor is the component that collects internal metadata of the file system. It makes use of ext4 utilities such as debugfs, dumpe2fs; for example, it uses dump\_extents in debugfs to retrieve physical locations of extents. The FS Monitor can save the collected information to files for offline analyzing (by R, a statistical programming language) or send it directly to the Analyzer. The Analyzer analyzes the information and sends the results to Test Manager as feedback; the Test Manager can then decide future tests based off of the results. Thus our components – the Test Manager, Workload Generator, Workload Player, File System, FS Monitor, and Analyzer - form a consistent feedback loop. We believe this loop  will serve well in performing sophisticated model checking in the future.
+The FS Manipulator is used to prepare the file system for testing; it handles tasks such as formatting, fragmenting, and aging the file system. The FS Monitor is the component that collects internal metadata of the file system. It makes use of ext4 utilities such as debugfs, dumpe2fs; for example, it uses dump\_extents in debugfs to retrieve physical locations of extents. The FS Monitor can save the collected information to files for offline analyzing (by R, a statistical programming language) or send it directly to the Analyzer. The Analyzer analyzes the information and sends the results to Test Manager as feedback; the Test Manager can then decide future tests based off of the results. Thus our components - the Test Manager, Workload Generator, Workload Player, File System, FS Monitor, and Analyzer - form a consistent feedback loop. We believe this loop  will serve well in performing sophisticated model checking in the future.
  
 
 
@@ -222,6 +253,7 @@ The FS Manipulator is used to prepare the file system for testing; it handles ta
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Issues in ext4 policy}
+\label{sec:Issues-in-ext4-policy}
 \subsection{Comparison of block allocation in ext4, XFS, and Btrfs}
 
 In order to explore issues in ext4 block allocation, we began by comparing block allocation between ext4, XFS, and Btrfs. In our most prominent  test, we write a single file with different patterns on an empty file system 4 GB in size.  For faster testing and to avoid any interference from the hardware, we ran these tests in a RAM disk.  
@@ -299,7 +331,7 @@ Chunk 0 is allocated from group preallocation space, while chunk 1 is allocated 
 ext4 tries to allocate the first block of a small file to the same block group as its inode. However, for large files, the file system does not try to keep the data blocks of a file and its inode close; instead, it puts the first block of a big file to the block group where the previous big file block is allocated. The implication of this policy is that many new large files will be put into the same block group, and the extents of these files may become interleaved with each other if they grow together and are frequently synced.  We explore this behavior in more detail below in section 6.
 
 \subsection{Small file CPU affinity}
-In ext4, each CPU has its own group preallocation space; small files written by a given CPU have space allocated from the group preallocation of that CPU.  The motivation of attaching group preallocation to CPU was scalability – as each CPU has its own space and threads on different CPUs may not be likely to write to the same small file, this would reduce contention. However, this also implies that if the writer process switches to a different CPU, blocks newly written and forced to disk will be placed in a different preallocation space than their predecessors. We acknowledge this is not necessarily a common case, but it is still a potential source of fragmentation.
+In ext4, each CPU has its own group preallocation space; small files written by a given CPU have space allocated from the group preallocation of that CPU.  The motivation of attaching group preallocation to CPU was scalability - as each CPU has its own space and threads on different CPUs may not be likely to write to the same small file, this would reduce contention. However, this also implies that if the writer process switches to a different CPU, blocks newly written and forced to disk will be placed in a different preallocation space than their predecessors. We acknowledge this is not necessarily a common case, but it is still a potential source of fragmentation.
 
 \subsection{Extent tree block allocation}
 The extent tree block (ETB) is the block that holds pointers to data extents. In early versions of ext4, the ETB was allocated closely to the file's data extents; with this policy, the ETB could break the continuity of data blocks, as it would be mixed in with the data blocks. A patch in 2011 changed the policy to place the ETB close to inodes; however, we argue this introduces a new problem. In the case of large files, ext4 does not keep data blocks close to inodes; thus, data blocks are far away from both inodes and ETB. This potentially causes more, longer disk seeks. That said, as files rarely have a large number of extents, the number of ETBs are similarly unlikely to be large; thus we hope the number of long disk seeks should be low in real world.
@@ -322,8 +354,25 @@ As a final note, we consider the case of SSDs.  While it is true that SSDs are g
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%
 \section{HDFS and ext4: a case study}
+\label{sec:HDFS-and-ext4-a-case-study}
 \subsection{HBase+HDFS background}
 As mentioned above, ext4 now serves not only as a consumer file system but also as the backbone of many larger corporate or distributed file systems; Google, for example, makes use of ext4 as the underlying file system of their servers running the Google File System (GFS), a distributed file system tailored to their needs\cite{ext4news}.  Though GFS is not publicly available, the Apache Hadoop project has established a similar file system known as the Hadoop File System (HDFS).  The Hadoop File System writes data to one or more data servers in the form of chunk files which are generally several dozen MB in size.  A separate server, the 'namenode', handles the mapping between chunks and files within the FS. 
+ 
+\begin{figure}[ht]
+    \includegraphics
+    	[trim=0mm 0mm 0mm 0mm, clip, width=80mm]
+    	{nochange-flat-fixed3}
+    \caption{Layout of five HDFS chunk files under standard ext4 when durably, concurrently appended.  Notice the significant interleaving}
+    \label{fig:nochange-flat-fixed3}
+\end{figure}
+
+\begin{figure}[ht]
+    \includegraphics
+    	[trim=0mm 0mm 0mm 0mm, clip, width=80mm]
+    	{change-flat-fixed3}
+    \caption{Layout of five HDFS chunk files under our modified ext4 when durably, concurrently appended.  The files are almost entirely contiguously laid out, with only one small extent in two of the files placed distant from the remainder.}
+    \label{fig:change-flat-fixed3}
+\end{figure}
  
  
  
@@ -361,22 +410,6 @@ As mentioned above, ext4 now serves not only as a consumer file system but also 
     \label{fig:stats-for-benchmarks-hdfs}
 \end{figure}
 
-\begin{figure}[ht]
-    \includegraphics
-    	[trim=0mm 0mm 0mm 0mm, clip, width=80mm]
-    	{nochange-flat-fixed3}
-    \caption{Layout of five HDFS chunk files under standard ext4 when durably, concurrently appended.  Notice the significant interleaving}
-    \label{fig:nochange-flat-fixed3}
-\end{figure}
-
-\begin{figure}[ht]
-    \includegraphics
-    	[trim=0mm 0mm 0mm 0mm, clip, width=80mm]
-    	{change-flat-fixed3}
-    \caption{Layout of five HDFS chunk files under our modified ext4 when durably, concurrently appended.  The files are almost entirely contiguously laid out, with only one small extent in two of the files placed distant from the remainder.}
-    \label{fig:change-flat-fixed3}
-\end{figure}
- 
  
 In addition to HDFS, Apache provides the HBase project, a distributed database designed to run on top of an HDFS installation and provide much of the same functionality as Google's BigData database software.  Although HBase, like HDFS, is designed to rely on cross-server duplication to provide durability guarantees, the HBase community has recognized the need for programmers to be able to guarantee data has been durably written to at least one disk; thus, HBase is moving to make use of HDFS’ hsync() call, which serves as an HDFS equivalent of the POSIX fsync() call by synchronously committing data to the disk.
  
@@ -413,9 +446,9 @@ Our results are summarized in the Figure~\ref{fig:stats-for-benchmarks-postmark}
 	\item The 'large' benchmark is a run with 400 files of an average 40 MB size.
 \end{itemize}
 
-We present our results in  Figure~\ref{fig:stats-for-benchmarks-postmark}~\ref{fig:stats-for-benchmarks-fileserver}~\ref{fig:stats-for-benchmarks-varmail}.  We see a slight improvement in performance with our change on the large loads, a significant (13.5\%) decrease in performance on the varmail medium load, and significant decreases in performance on the default loads (13.3\% for varmail, 12.9\% for fileserv). 
+We present our results in  Figure~\ref{fig:stats-for-benchmarks-varmail}~\ref{fig:stats-for-benchmarks-fileserver}~\ref{fig:stats-for-benchmarks-postmark}.  We see a slight improvement in performance with our change on the large loads, a significant (13.5\%) decrease in performance on the varmail medium load, and significant decreases in performance on the default loads (13.3\% for varmail, 12.9\% for fileserv). 
  
-For the postmark benchmark, we defined a run with 200 files ranging between 1 and 64 MB in size, which we then performed 1000 transactions on.  Again, we see our change has caused some loss in speed – namely, a 6.0\% decrease in read throughput and a 6.5\% decrease in write throughput.
+For the postmark benchmark, we defined a run with 200 files ranging between 1 and 64 MB in size, which we then performed 1000 transactions on.  Again, we see our change has caused some loss in speed - namely, a 6.0\% decrease in read throughput and a 6.5\% decrease in write throughput.
  
 Although time constraints prevent us from performing a more thorough analysis of these results, we suspect that these benchmarks may not necessarily make heavy use of the fsync() command; thus, ext4 is more free to group I/O as it desires.  In the standard ext4 setup, this would enable it to group large files in the same block group without running the risk of fragmentation; however, with our change, these files would be placed in a separate block group, thus causing additional seek time. [12]  We are uncertain as to why we see significant performance decreases in the default, small-file case for filebench; perhaps this serves as a warning that even a simple policy change can have unforeseen consequences.
 
@@ -429,6 +462,7 @@ Although time constraints prevent us from performing a more thorough analysis of
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Future work}
+\label{sec:Future-work}
 Our work with ext4 has served largely as a survey and not as a comprehensive classification or rewrite.  A natural further step to take along this line of research would be to not only continue investigation of ext4 block allocation policies but to define a meaningful classification for its various facets which could then be used to more objectively compare its strategies with those of competing file systems.
  
 ext4 itself could also make use of a more detailed survey or classification.  By commenting source code or creating documentation to better explain the various facets of ext4's block allocation policy, we would hope that developers would have a better grasp on how to design their programs to make best use of ext4, or to have a better idea of what to change in ext4 if they desire a more fine-tuned solution.
@@ -443,11 +477,12 @@ Finally, as we have discussed above, ext4's existing policies are yet imperfect,
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Conclusions}
-ext4 is a complicated beast.  In making the most fundamental decision of a file system – where to place data on the disk – it takes into account a variety of factors and applies a number of complicated, if imperfect, policies to make its choice.  Ideally, ext4's policies would be open and easily-understandable; barring that, we hope they would at least be comprehensive and consistent.  We find them to be neither.  The sheer number of factors that go into determining block layout make ext4's policy a black box to users, and its behavior displays remarkable inconsistency compared to competing file systems such as XFS and Btrfs.
+\label{sec:Conclusions}
+ext4 is a complicated beast.  In making the most fundamental decision of a file system - where to place data on the disk - it takes into account a variety of factors and applies a number of complicated, if imperfect, policies to make its choice.  Ideally, ext4's policies would be open and easily-understandable; barring that, we hope they would at least be comprehensive and consistent.  We find them to be neither.  The sheer number of factors that go into determining block layout make ext4's policy a black box to users, and its behavior displays remarkable inconsistency compared to competing file systems such as XFS and Btrfs.
  
 We find the behavior of ext4 and the results of these policies particularly concerning when we consider that ext4 is today being used beyond the confines of a basic user file system.  As ext4 is used in advanced systems such as distributed file systems, issues of policy seem likely to rear their heads in increasingly complicated and concerning ways.  Our investigation of HDFS's work case and how it interacts with ext4 leads to a simple policy change that, while helpful in HDFS' case, provides mixed results with more general workloads.  This result serves as a reminder both of the importance and the subtlety of policy decisions.
  
-We do not mean to utterly disparage ext4.  It is complicated in the hopes of serving many purposes, and issues such as HDFS layout could be forgiven, given they fall outside of the scope of a traditional file system.  But its labyrinth policy decisions make understanding it a challenge, and adapting to it even more of one.  We hope that in the future, be it in later ext4 revisions or in different file systems altogether, developers recall that policy is as much a first-class citizen of design as implementation – and that users of their system desire and deserve a well-defined policy.
+We do not mean to utterly disparage ext4.  It is complicated in the hopes of serving many purposes, and issues such as HDFS layout could be forgiven, given they fall outside of the scope of a traditional file system.  But its labyrinth policy decisions make understanding it a challenge, and adapting to it even more of one.  We hope that in the future, be it in later ext4 revisions or in different file systems altogether, developers recall that policy is as much a first-class citizen of design as implementation - and that users of their system desire and deserve a well-defined policy.
 
 
 %
