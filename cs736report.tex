@@ -131,7 +131,7 @@ contiguously or in line with logical file layout
 can lead to additional seeks due to fragmentation, 
 reducing performance.
  
-We chose to investigate ext4's block allocation policies in the hopes that they would prove to be well-defined and effective, so that programmers working on top of ext4 would be able to take advantage of ext4's behavior.  Unfortunately, we find that ext4's policies are complicated and not necessarily well-defined; for example, examination of the source code finds suggestions that aspects of ext4 policy are ad-hoc and only obscurely exposed to the user.
+We chose to investigate ext4's block allocation policies in the hopes that they would prove to be well-defined and effective, so that programmers working on top of ext4 would be able to take advantage of ext4's behavior.  Unfortunately, we find that ext4's policies are complicated and not necessarily well-defined; for example, examination of the source code finds suggestions that aspects of ext4 policy are ad-hoc and only obscurely exposed to the user.\cite{lxrL3028,lxrL45}
 \footnote{ See http://pastebin.com/8iedq5ua for some of the source code; we could put one in as a figure.  Caption could be something like ``An excerpt from ext4's block allocation code.  The developers acknowledge a number of remaining policy issues'' for the first one and ``An excerpt from ext4's block allocation code.  We see little justification for the cutoffs used in this table, only a weak question of ``should this be tunable?''''}
  
 In order to examine ext4's block allocation in practice, we developed a framework which generates configurable workloads which provide varying write patterns for a given file; by using this framework, we are able to expose some irregularities of ext4's block allocation policy.  In particular, we use this data to discuss ext4's policies and their lack of consistency in comparison with two other major file systems, XFS and Btrfs, and show that ext4's block allocation is significantly more varied for the same file written in various ways compared to these systems.
@@ -152,11 +152,10 @@ The rest of the paper continues as follows.  Section~\ref{sec:Related-work} prov
 %%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Related work}
 \label{sec:Related-work}
-\subsection{Parallels between memory allocation and ext4 disk allocation}
+\subsection{Memory allocation}
 The potential for similar strategies being reused between disk allocation and memory allocation has been recognized in past work.  Many memory allocation mechanisms have two layers: a 'slab allocator' and a 'buddy allocator'.  The slab allocator can improve allocation efficiency and reduce internal fragmentation; within the allocator, a cache is defined which serves as storage for a certain type, such as semaphores, files and so on.  A 'slab' is taken to be the unit of space that a cache increases or shrinks by; generally, it consists of one or more pages. To reduce fragmentation, there are two kinds of slabs - small slabs and big slabs.  A small slab is exactly one page and is used for memory objects that is less than 1/8 of a page; if the object is larger, big slabs that can be more than one page are used\cite{bonwick1994slab}.
  
-Ext4 has similar designs that aim to reduce fragmentation \cite{wilson1995dynamic}.  At a high level, blocks of small files and big files are allocated from different places - small file blocks are allocated from group preallocation space, where blocks of different files are packed together. In this layout, no holes are reserved.  Large file blocks are allocated from inode preallocation space; this space is reserved ahead of time for a specific file and cannot be used by other files.  This layout allows holes between files. The authors claim the policy improves locality and reduces fragmentation. Thus ext4's allocation policies serve as mirrors of the different slab sizes.  Similarly, as slabs may belong to different CPU, node, etc, preallocated disk blocks may belong to different CPUs, block groups, files, or directories.  Essentially, slab and preallocation are both pools with free and in-use spaces for management purpose. 
-
+ext4 has similar designs that aim to reduce fragmentation \cite{wilson1995dynamic}.  At a high level, blocks of small files and big files are allocated from different places; the authors claim the policy improves locality and reduces fragmentation. ext4's allocation policies thus serve a similar role as differing slab sizes.  The specifics of this policy will be discussed in section \ref{sec:Issues-in-ext4-policy}. 
 
 In the memory allocation model, a more fine-grained buddy allocator
  is present beneath the slab allocator.  In this buddy allocator, 
@@ -167,7 +166,7 @@ In the memory allocation model, a more fine-grained buddy allocator
  free pages are divided into half (two parts, each has $2^{7}$ pages). This 
  first part is allocated to the program, and second half is left unused. 
  Later, when the space is freed, the allocator will check its neighbors 
- to see if they can be merged to a bigger free space. Ext4 also makes 
+ to see if they can be merged to a bigger free space. ext4 also makes 
  use of a buddy allocator, but only for large requests that are aligned 
  to sizes of $2^{N}$. If the requests are not aligned, the disk is scanned 
  to collect enough free space to satisfy the request.  To minimize file 
@@ -178,10 +177,10 @@ In the memory allocation model, a more fine-grained buddy allocator
 Justification for the concept of a buddy allocator can be found in the work of Wilson et. al.  In their 1995 survey of memory allocators, they reviewed a variety of possible allocation strategies and made note of the popularity of the buddy allocator due to its simplicity and speed~\cite{cao2008ext4}.  Several buddy system variations are introduced in~\cite{peterson1977buddy}; however, the high internal and external fragmentation that resulted made it unattractive to disk allocations. In \cite{koch1987disk}, Koch addressed the problem by offering the idea of allocating a file up to limited extents and reallocating non-optimal files. In ext4, as mentioned above, the problem is addressed via relying on buddy allocations only when requests are aligned among a power-of-two boundary.
 
 \subsection{Known limitations in allocation}
-Ext4 is recognized by its development community as an imperfect system.  Although it makes attempts to provide locality through methods such as grouping based on directory location, current discussions amongst the developers make note of issues such as an over-reliance on directory-based locality resulting in allocation of small, fragmented extents when large ones may be open one group over~\cite{FallocateCreating} and the need for users to be able to provide hints to the allocator as to the characteristics of the files they are writing through the fallocate() call~\cite{BlockReservation}.
+ext4 is recognized by its development community as an imperfect system.  Although it makes attempts to provide locality through methods such as grouping based on directory location, current discussions amongst the developers make note of issues such as an over-reliance on directory-based locality resulting in allocation of small, fragmented extents when large ones may be open one group over~\cite{FallocateCreating} and the need for users to be able to provide hints to the allocator as to the characteristics of the files they are writing through the fallocate() call~\cite{BlockReservation}.
 
 \subsection{Comparison with Btrfs}
-Ext4 has also been compared to Btrfs, a modern file system which makes use of B+ trees for its structure.  Although Btrfs makes use of delayed allocation like ext4, Btrfs makes use of 'allocation groups' - portions of space specifically marked for use on different types of data (eg. 'system' data which comprises the backbone of the file system, file metadata, and file data).  A tree describing free space in these groups is kept in memory and used to find just enough space in the data case or enough space plus a 64KB buffer in the metadata case.  Small files (<4KB) are in fact stored within the metadata blocks, rather than separately on disk\cite{kara2009ext4}.  Though the two filesystems display comparable performance (subject to some variations) \cite{kebede2012performance}, comparing these two file systems helps us in understanding the tradeoffs of block allocation.
+ext4 has also been compared to Btrfs, a modern file system which makes use of B+ trees for its structure.  Although Btrfs makes use of delayed allocation like ext4, Btrfs makes use of 'allocation groups' - portions of space specifically marked for use on different types of data (eg. 'system' data which comprises the backbone of the file system, file metadata, and file data).  A tree describing free space in these groups is kept in memory and used to find just enough space in the data case or enough space plus a 64KB buffer in the metadata case.  Small files (<4KB) are in fact stored within the metadata blocks, rather than separately on disk\cite{kara2009ext4}.  Though the two filesystems display comparable performance (subject to some variations) \cite{kebede2012performance}, comparing these two file systems helps us in understanding the tradeoffs of block allocation.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -194,20 +193,20 @@ Ext4 has also been compared to Btrfs, a modern file system which makes use of B+
 \section{ext4 background}
 \label{sec:ext4-background}
 \subsection{Data structure}
-Ext4 builds off of the work of the previous ext file systems.  It carries over several of the fundamental data structures introduced in those systems, such as the superblock, bitmaps for block and inode allocation, and inode tables.  As in ext2 and ext3, the superblock maintains global information (such as block size) needed by the FS, and block and inode bitmaps indicate free blocks and entries in the inode tables, respectively.  In addition, the disk is divided into 'block groups' of a size defined in the superblock; in a default ext4 system with 4KB blocks, each block group is 16 MB.
+ext4 builds off of the work of the previous ext file systems.  It carries over several of the fundamental data structures introduced in those systems, such as the superblock, bitmaps for block and inode allocation, and inode tables.  As in ext2 and ext3, the superblock maintains global information (such as block size) needed by the FS, and block and inode bitmaps indicate free blocks and entries in the inode tables, respectively.  In addition, the disk is divided into 'block groups' of a size defined in the superblock; in a default ext4 system with 4KB blocks, each block group is 16 MB.
  
-Ext4 also introduces a new feature, the flexible block group (flex\_bg).  A single flex\_bg contains multiple standard block groups, with the block/inode bitmaps and inode tables of all block groups placed within the first block group.  Although this means the first block group in the flex\_bg uses more space on storing this metadata, the remaining groups need not store that metadata, potentially allowing better file contiguity due to no interruptions from metadata.  (Data blocks may still be interrupted by copies of the superblock; ext4 allows the user to specify how sparsely or densely the superblock is replicated.)\cite{ext4kernelnewbies}
+ext4 also introduces a new feature, the flexible block group (flex\_bg).  A single flex\_bg contains multiple standard block groups, with the block/inode bitmaps and inode tables of all block groups placed within the first block group.  Although this means the first block group in the flex\_bg uses more space on storing this metadata, the remaining groups need not store that metadata, potentially allowing better file contiguity due to no interruptions from metadata.  (Data blocks may still be interrupted by copies of the superblock; ext4 allows the user to specify how sparsely or densely the superblock is replicated.)\cite{ext4kernelnewbies}
 
 \subsection{Extent-based file system}
 In previous ext file systems, the data blocks of a file were pointed to by indirect blocks - metadata blocks containing pointers to other indirect blocks and ultimately the data blocks of the file itself.  Thus, metadata size for a file was proportional to the number of blocks.
  
  
-Ext4 avoids this issue by making use of extents rather than indirect blocks for most files.  An extent is a contiguous space on disk consisting of one or more blocks, represented as a pair (start block, length).  In ext4, a 4KB block size allows for extents up to 128MB; for comparison, a non-extent-based system would require 32,678 pointers to reference the same number of blocks.  Thus ext4 is able to dramatically reduce the amount of metadata needed for individual files.
+ext4 avoids this issue by making use of extents rather than indirect blocks for most files.  An extent is a contiguous space on disk consisting of one or more blocks, represented as a pair (start block, length).  In ext4, a 4KB block size allows for extents up to 128MB; for comparison, a non-extent-based system would require 32,678 pointers to reference the same number of blocks.  Thus ext4 is able to dramatically reduce the amount of metadata needed for individual files.
 
-\subsection{Delayed allocation and multi-block allocation}
+\subsection{Delayed and multi-block allocation}
 ext4 allocates disk blocks lazily. It buffers data in memory and allocates disk blocks when flushing. The flushing happe	ns when the user program calls flushing system calls, such as fsync(), sync(), or the operating system flushing daemon takes effect (e.g. pdflush).
  
-Ext4 attempts to avoid unnecessary I/O by allocating disk blocks lazily.  Upon writes, it buffers the data in memory and allocates physical space on disk only when a flush is initiated through system calls such as fsync() or sync().
+ext4 attempts to avoid unnecessary I/O by allocating disk blocks lazily.  Upon writes, it buffers the data in memory and allocates physical space on disk only when a flush is initiated through system calls such as fsync() or sync().
  
 In tandem delayed allocation, ext4 also attempts to reduce I/O traffic and fragmentation by allocating multiple blocks at once rather than each block individually.
 \cite{ext4kernelnewbies}
@@ -254,7 +253,7 @@ The FS Manipulator is used to prepare the file system for testing; it handles ta
 %%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Issues in ext4 policy}
 \label{sec:Issues-in-ext4-policy}
-\subsection{Comparison of block allocation in ext4, XFS, and Btrfs}
+\subsection{Comparison of ext4, XFS, and Btrfs}
 
 In order to explore issues in ext4 block allocation, we began by comparing block allocation between ext4, XFS, and Btrfs. In our most prominent  test, we write a single file with different patterns on an empty file system 4 GB in size.  For faster testing and to avoid any interference from the hardware, we ran these tests in a RAM disk.  
  
@@ -267,14 +266,14 @@ The write patterns vary in write order, fsync call frequency, and open-close-syn
     
 A given combination of write order, fsync call frequency, and open-close-sync frequency forms a complete write pattern. For example, open-writeC1-fsync-writeC3-close-sync-open-writeC1-close-sync is one complete pattern. Note that although both fsync and sync calls will force the file data to disk, they trigger different issues of block allocation.
 
-For our comparison, we wrote files with different patterns and recorded the physical span of file data; we refer to this as the d-span.  We argue that d-span is a good indicator of file locality, as it provides a quantifiable measure of  how the data of a file is spread out on disk. Figure~\ref{fig:side-by-side-d-span} shows the resulting d-spans for different writing patterns. For each file size, we tested 192 different write patterns; each pattern corresponds to a data point on the graph of that file size. In addition to the individual data points, we display box plots to show the distribution of d-span across various patterns. For example, when the file size is 12KB, the box plot shows the median is at 2MB, and indeed most of the write patterns for 12KB files have a d-span larger than 2MB.  More importantly, this figure shows that ext4 block allocation is significantly more inconsistent than XFS and Btrfs. In the following subsections, we will discuss a number of ext4 policies we believe contribute to this inconsistent behavior.
+For our comparison, we wrote files with different patterns and recorded the physical span of file data; we refer to this as the d-span.  We argue that d-span is a good indicator of file locality, as it provides a quantifiable measure of  how the data of a file is spread out on disk. Figure~\ref{fig:side-by-side-d-span} shows the resulting d-spans for different writing patterns. For example, when the file size is 12KB, the box plot shows the median is at 2MB, and indeed most of the write patterns for 12KB files have a d-span larger than 2MB.  More importantly, this figure shows that ext4 block allocation is significantly more inconsistent than XFS and Btrfs. In the following subsections, we will discuss a number of ext4 policies we believe contribute to this inconsistent behavior.
 
 
 \begin{figure}[ht]
     \includegraphics
     	[trim=0mm 0mm 0mm 0mm, clip, width=80mm]
     	{side-by-side-d-span}
-    \caption{cap}
+    \caption{For each file size, we tested 192 different write patterns; each pattern corresponds to a data point on the graph of that file size. In addition to the individual data points, we display box plots to show the distribution of d-span across various patterns. }
     \label{fig:side-by-side-d-span}
 \end{figure}
 
@@ -294,11 +293,13 @@ There are two types of preallocations - group preallocation and inode preallocat
 \end{figure}
 
 
-Figure~\ref{fig:buddy-cache-prealloc} shows the space management system in memory.  Ext4 makes use of a buddy cache which marks free and non-free disk spaces and handles allocation decisions. Group and inode preallocation spaces are also allocated out of this buddy cache. When the file system is mounted, the free space and non-free space are identical to what the on-disk block bitmaps indicate. As files are created, some free spaces in the buddy cache are marked as non-free and tagged as preallocation spaces; file data blocks are then allocated out of group preallocation space, inode preallocation space, or free space in the buddy cache, depending on factors such as file size and block position in file.
+Figure~\ref{fig:buddy-cache-prealloc} shows the space management system in memory.  ext4 makes use of a buddy cache which marks free and non-free disk spaces and handles allocation decisions. Group and inode preallocation spaces are also allocated out of this buddy cache. When the file system is mounted, the free space and non-free space are identical to what the on-disk block bitmaps indicate. As files are created, some free spaces in the buddy cache are marked as non-free and tagged as preallocation spaces; file data blocks are then allocated out of group preallocation space, inode preallocation space, or free space in the buddy cache, depending on factors such as file size and block position in file.
 
 \subsection{Normalization}
-Normalization is the process of deciding how much extra space should be reserved for preallocation.  ext4 performs preallocation differently depending on the current file size. For small files, if currently there is no group preallocation, 512 blocks (default) will be allocated out of the buddy cache’s free space to serve as a new shared group preallocation . If the current file size is larger than 64KB (in the default case), the preallocation is done following Table X.
+Normalization is the process of deciding how much extra space should be reserved for preallocation.  ext4 performs preallocation differently depending on the current file size. For small files, if currently there is no group preallocation, 512 blocks (default) will be allocated out of the buddy cache’s free space to serve as a new shared group preallocation . If the current file size is larger than 64KB (in the default case), the preallocation is done following Table~\ref{table:normalization}.
 
+\begin{table}[ht]
+\caption{ext4 normalization}
 \begin{center}
     \begin{tabular}{ | l | p{5cm} |}
     \hline
@@ -309,8 +310,11 @@ Normalization is the process of deciding how much extra space should be reserved
     File size <=8MB & Preallocate 4MB, align to $4\times X$ MB \\ \hline
     Request size <=8MB & Preallocate 8MB, align to $8\times X$ MB  \\ \hline
     Others & No preallocation \\ \hline
+    
     \end{tabular}
 \end{center}
+\label{table:normalization}
+\end{table}
 
 \subsection{Small file/big file threshold}
 Though these normalization threshold seem well-defined, they mask an issue which occurs when a file crosses the threshold between 'small' and 'big'.  While the file is less than 64 KB in size, its data blocks are allocated from the group preallocation space; however, if it later grows past that size, it must place its blocks elsewhere on disk based on its inode preallocation.  As group preallocation spaces can be distant from other free space on the disk, this runs the risk of significant gaps in the file data; indeed, we observe just this issue in section 5.1, where this behavior is often responsible for the files being stripped across over gigabytes of disk.
@@ -358,6 +362,11 @@ As a final note, we consider the case of SSDs.  While it is true that SSDs are g
 \subsection{HBase+HDFS background}
 As mentioned above, ext4 now serves not only as a consumer file system but also as the backbone of many larger corporate or distributed file systems; Google, for example, makes use of ext4 as the underlying file system of their servers running the Google File System (GFS), a distributed file system tailored to their needs\cite{ext4news}.  Though GFS is not publicly available, the Apache Hadoop project has established a similar file system known as the Hadoop File System (HDFS).  The Hadoop File System writes data to one or more data servers in the form of chunk files which are generally several dozen MB in size.  A separate server, the 'namenode', handles the mapping between chunks and files within the FS. 
  
+ 
+ 
+ 
+ 
+ 
 \begin{figure}[ht]
     \includegraphics
     	[trim=0mm 0mm 0mm 0mm, clip, width=80mm]
@@ -374,6 +383,15 @@ As mentioned above, ext4 now serves not only as a consumer file system but also 
     \label{fig:change-flat-fixed3}
 \end{figure}
  
+ 
+\begin{figure}[ht]
+    \includegraphics
+    	[trim=0mm 90mm 0mm 90mm, clip, width=80mm]
+    	{stats-for-benchmarks-hdfs}
+    \caption{Benchmark results for our HDFS test.  Our new change sees notable improvement in this HDFS case compared to stock ext4.}
+    \label{fig:stats-for-benchmarks-hdfs}
+\end{figure}
+  
  
  
 \begin{figure}[ht]
@@ -402,13 +420,6 @@ As mentioned above, ext4 now serves not only as a consumer file system but also 
     \label{fig:stats-for-benchmarks-postmark}
 \end{figure}
 
-\begin{figure}[ht]
-    \includegraphics
-    	[trim=0mm 90mm 0mm 90mm, clip, width=80mm]
-    	{stats-for-benchmarks-hdfs}
-    \caption{Benchmark results for our HDFS test.  Our new change sees notable improvement in this HDFS case compared to stock ext4.}
-    \label{fig:stats-for-benchmarks-hdfs}
-\end{figure}
 
  
 In addition to HDFS, Apache provides the HBase project, a distributed database designed to run on top of an HDFS installation and provide much of the same functionality as Google's BigData database software.  Although HBase, like HDFS, is designed to rely on cross-server duplication to provide durability guarantees, the HBase community has recognized the need for programmers to be able to guarantee data has been durably written to at least one disk; thus, HBase is moving to make use of HDFS’ hsync() call, which serves as an HDFS equivalent of the POSIX fsync() call by synchronously committing data to the disk.
@@ -431,7 +442,7 @@ For these benchmarks, we made use of a machine running Ubuntu 12.04 with modifie
  
 In Figure~\ref{fig:nochange-flat-fixed3}, we see that with the default ext4 policy HDFS' chunk files become heavily, if roughly evenly, interleaved on the disk.  Figure~\ref{fig:change-flat-fixed3} shows that with our change they are each allocated an appropriately-large extent and display minimal interleaving.  Although disk bandwidth dominates in situations of large sequential I/O, our new layout still provides a noticeable improvement in read times; reading back the files through those five threads takes an average of 647.23 seconds without our change (for a throughput of 126.57 Mb/s) and 595.40 seconds with (a throughput of 137.59 Mb/s), an 8.0\%  increase in speed (see Figure~\ref{fig:stats-for-benchmarks-hdfs}).  We suspect that in addition to the reduced number of seeks, the strong contiguity of the files enables ext4 and the hard disk to make better I/O scheduling decisions.
 
-\subsection{Influence to general workload (general benchmarks)}
+\subsection{Influence to general workload}
 We acknowledge the limitations of such a benchmark; our policy change is designed precisely for these sorts of HDFS workloads.  Nevertheless, we were curious as to how our changes affected more general workloads when applied to ext4.
  
 We made use of three different popular disk benchmarks: filebench's varmail and fileserver benchmarks, and the Postmark benchmark.  In the case of varmail and fileserver, we also varied the sizes of the files involved.
