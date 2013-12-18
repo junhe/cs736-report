@@ -27,16 +27,18 @@
 % For tracking purposes - this is V3.1SP - APRIL 2009
 
 \documentclass{acm_proc_article-sp}
+\graphicspath{{./figures/}}
+\hyphenation{op-tical net-works semi-conduc-tor pre-fe-tch
+             log-struc-tured}
+             
 
 \begin{document}
 
-\title{A Sample {\ttlit ACM} SIG Proceedings Paper in LaTeX
-Format\titlenote{(Does NOT produce the permission block, copyright information nor page numbering). For use with ACM\_PROC\_ARTICLE-SP.CLS. Supported by ACM.}}
-\subtitle{[Extended Abstract]
-\titlenote{A full version of this paper is available as
-\textit{Author's Guide to Preparing ACM SIG Proceedings Using
-\LaTeX$2_\epsilon$\ and BibTeX} at
-\texttt{www.acm.org/eaddress.htm}}}
+\title{Analyzing and Improving ext4 Block Allocation Policies
+\titlenote{This is a project report of course CS736 Advanced Operating System
+at University of Wisconsin, Madison}
+}
+
 %
 % You need the command \numberofauthors to handle the 'placement
 % and alignment' of the authors beneath the title.
@@ -62,449 +64,263 @@ Format\titlenote{(Does NOT produce the permission block, copyright information n
 % without further effort on your part as the last section in
 % the body of your article BEFORE References or any Appendices.
 
-\numberofauthors{8} %  in this sample file, there are a *total*
+\numberofauthors{2} %  in this sample file, there are a *total*
 % of EIGHT authors. SIX appear on the 'first-page' (for formatting
 % reasons) and the remaining two appear in the \additionalauthors section.
 %
 \author{
-% You can go ahead and credit any number of authors here,
-% e.g. one 'row of three' or two rows (consisting of one row of three
-% and a second row of one, two or three).
-%
-% The command \alignauthor (no curly braces needed) should
-% precede each author name, affiliation/snail-mail address and
-% e-mail address. Additionally, tag each line of
-% affiliation/address with \affaddr, and tag the
-% e-mail address with \email.
-%
-% 1st. author
 \alignauthor
-Ben Trovato\titlenote{Dr.~Trovato insisted his name be first.}\\
-       \affaddr{Institute for Clarity in Documentation}\\
-       \affaddr{1932 Wallamaloo Lane}\\
-       \affaddr{Wallamaloo, New Zealand}\\
-       \email{trovato@corporation.com}
-% 2nd. author
-\alignauthor
-G.K.M. Tobin\titlenote{The secretary disavows
-any knowledge of this author's actions.}\\
-       \affaddr{Institute for Clarity in Documentation}\\
-       \affaddr{P.O. Box 1212}\\
-       \affaddr{Dublin, Ohio 43017-6221}\\
-       \email{webmaster@marysville-ohio.com}
-% 3rd. author
-\alignauthor Lars Th{\o}rv{\"a}ld\titlenote{This author is the
-one who did all the really hard work.}\\
-       \affaddr{The Th{\o}rv{\"a}ld Group}\\
-       \affaddr{1 Th{\o}rv{\"a}ld Circle}\\
-       \affaddr{Hekla, Iceland}\\
-       \email{larst@affiliation.org}
-\and  % use '\and' if you need 'another row' of author names
-% 4th. author
-\alignauthor Lawrence P. Leipuner\\
-       \affaddr{Brookhaven Laboratories}\\
-       \affaddr{Brookhaven National Lab}\\
-       \affaddr{P.O. Box 5000}\\
-       \email{lleipuner@researchlabs.org}
-% 5th. author
-\alignauthor Sean Fogarty\\
-       \affaddr{NASA Ames Research Center}\\
-       \affaddr{Moffett Field}\\
-       \affaddr{California 94035}\\
-       \email{fogartys@amesres.org}
-% 6th. author
-\alignauthor Charles Palmer\\
-       \affaddr{Palmer Research Laboratories}\\
-       \affaddr{8600 Datapoint Drive}\\
-       \affaddr{San Antonio, Texas 78229}\\
-       \email{cpalmer@prl.com}
+Nathan Deisinger, Jun He\\
+       \affaddr{Department of Computer Sciences}\\
+       \affaddr{University of Wisconsin, Madison}\\
+       \email{ndeisinger@wisc.edu, jhe@cs.wisc.edu}
 }
 % There's nothing stopping you putting the seventh, eighth, etc.
 % author on the opening page (as the 'third row') but we ask,
 % for aesthetic reasons that you place these 'additional authors'
 % in the \additional authors block, viz.
-\additionalauthors{Additional authors: John Smith (The Th{\o}rv{\"a}ld Group,
-email: {\texttt{jsmith@affiliation.org}}) and Julius P.~Kumquat
-(The Kumquat Consortium, email: {\texttt{jpkumquat@consortium.net}}).}
-\date{30 July 1999}
 % Just remember to make sure that the TOTAL number of authors
 % is the number that will appear on the first page PLUS the
 % number that will appear in the \additionalauthors section.
 
 \maketitle
 \begin{abstract}
-This paper provides a sample of a \LaTeX\ document which conforms to
-the formatting guidelines for ACM SIG Proceedings.
-It complements the document \textit{Author's Guide to Preparing
-ACM SIG Proceedings Using \LaTeX$2_\epsilon$\ and Bib\TeX}. This
-source file has been written with the intention of being
-compiled under \LaTeX$2_\epsilon$\ and BibTeX.
-
-The developers have tried to include every imaginable sort
-of ``bells and whistles", such as a subtitle, footnotes on
-title, subtitle and authors, as well as in the text, and
-every optional component (e.g. Acknowledgments, Additional
-Authors, Appendices), not to mention examples of
-equations, theorems, tables and figures.
-
-To make best use of this sample document, run it through \LaTeX\
-and BibTeX, and compare this source code with the printed
-output produced by the dvi file.
+We discuss the block allocation policies of ext4, a widely-used commodity filesystem. In doing so we explain how much of ext4's policy contains subtle effects that we suspect can degrade layout and performance.  Furthermore, we discuss how these policies are mismatched with modern uses of ext4 such as using it as the basis of a distributed file system, and provide a policy change that improves performance in this case.  Our work suggests that ext4 policy would be well-served by significant refinement.
 \end{abstract}
 
-% A category with the (minimum) three required fields
-\category{H.4}{Information Systems Applications}{Miscellaneous}
-%A category including the fourth, optional field follows...
-\category{D.2.8}{Software Engineering}{Metrics}[complexity measures, performance measures]
-
-\terms{Theory}
-
-\keywords{ACM proceedings, \LaTeX, text tagging} % NOT required for Proceedings
+%\keywords{Block allocation, ext4, file system} % NOT required for Proceedings
 
 \section{Introduction}
-The \textit{proceedings} are the records of a conference.
-ACM seeks to give these conference by-products a uniform,
-high-quality appearance.  To do this, ACM has some rigid
-requirements for the format of the proceedings documents: there
-is a specified format (balanced  double columns), a specified
-set of fonts (Arial or Helvetica and Times Roman) in
-certain specified sizes (for instance, 9 point for body copy),
-a specified live area (18 $\times$ 23.5 cm [7" $\times$ 9.25"]) centered on
-the page, specified size of margins (1.9 cm [0.75"]) top, (2.54 cm [1"]) bottom
-and (1.9 cm [.75"]) left and right; specified column width
-(8.45 cm [3.33"]) and gutter size (.83 cm [.33"]).
-
-The good news is, with only a handful of manual
-settings\footnote{Two of these, the {\texttt{\char'134 numberofauthors}}
-and {\texttt{\char'134 alignauthor}} commands, you have
-already used; another, {\texttt{\char'134 balancecolumns}}, will
-be used in your very last run of \LaTeX\ to ensure
-balanced column heights on the last page.}, the \LaTeX\ document
-class file handles all of this for you.
-
-The remainder of this document is concerned with showing, in
-the context of an ``actual'' document, the \LaTeX\ commands
-specifically available for denoting the structure of a
-proceedings paper, rather than with giving rigorous descriptions
-or explanations of such commands.
-
-\section{The {\secit Body} of The Paper}
-Typically, the body of a paper is organized
-into a hierarchical structure, with numbered or unnumbered
-headings for sections, subsections, sub-subsections, and even
-smaller sections.  The command \texttt{{\char'134}section} that
-precedes this paragraph is part of such a
-hierarchy.\footnote{This is the second footnote.  It
-starts a series of three footnotes that add nothing
-informational, but just give an idea of how footnotes work
-and look. It is a wordy one, just so you see
-how a longish one plays out.} \LaTeX\ handles the numbering
-and placement of these headings for you, when you use
-the appropriate heading commands around the titles
-of the headings.  If you want a sub-subsection or
-smaller part to be unnumbered in your output, simply append an
-asterisk to the command name.  Examples of both
-numbered and unnumbered headings will appear throughout the
-balance of this sample document.
-
-Because the entire article is contained in
-the \textbf{document} environment, you can indicate the
-start of a new paragraph with a blank line in your
-input file; that is why this sentence forms a separate paragraph.
-
-\subsection{Type Changes and {\subsecit Special} Characters}
-We have already seen several typeface changes in this sample.  You
-can indicate italicized words or phrases in your text with
-the command \texttt{{\char'134}textit}; emboldening with the
-command \texttt{{\char'134}textbf}
-and typewriter-style (for instance, for computer code) with
-\texttt{{\char'134}texttt}.  But remember, you do not
-have to indicate typestyle changes when such changes are
-part of the \textit{structural} elements of your
-article; for instance, the heading of this subsection will
-be in a sans serif\footnote{A third footnote, here.
-Let's make this a rather short one to
-see how it looks.} typeface, but that is handled by the
-document class file. Take care with the use
-of\footnote{A fourth, and last, footnote.}
-the curly braces in typeface changes; they mark
-the beginning and end of
-the text that is to be in the different typeface.
-
-You can use whatever symbols, accented characters, or
-non-English characters you need anywhere in your document;
-you can find a complete list of what is
-available in the \textit{\LaTeX\
-User's Guide}\cite{Lamport:LaTeX}.
-
-\subsection{Math Equations}
-You may want to display math equations in three distinct styles:
-inline, numbered or non-numbered display.  Each of
-the three are discussed in the next sections.
-
-\subsubsection{Inline (In-text) Equations}
-A formula that appears in the running text is called an
-inline or in-text formula.  It is produced by the
-\textbf{math} environment, which can be
-invoked with the usual \texttt{{\char'134}begin. . .{\char'134}end}
-construction or with the short form \texttt{\$. . .\$}. You
-can use any of the symbols and structures,
-from $\alpha$ to $\omega$, available in
-\LaTeX\cite{Lamport:LaTeX}; this section will simply show a
-few examples of in-text equations in context. Notice how
-this equation: \begin{math}\lim_{n\rightarrow \infty}x=0\end{math},
-set here in in-line math style, looks slightly different when
-set in display style.  (See next section).
-
-\subsubsection{Display Equations}
-A numbered display equation -- one set off by vertical space
-from the text and centered horizontally -- is produced
-by the \textbf{equation} environment. An unnumbered display
-equation is produced by the \textbf{displaymath} environment.
-
-Again, in either environment, you can use any of the symbols
-and structures available in \LaTeX; this section will just
-give a couple of examples of display equations in context.
-First, consider the equation, shown as an inline equation above:
-\begin{equation}\lim_{n\rightarrow \infty}x=0\end{equation}
-Notice how it is formatted somewhat differently in
-the \textbf{displaymath}
-environment.  Now, we'll enter an unnumbered equation:
-\begin{displaymath}\sum_{i=0}^{\infty} x + 1\end{displaymath}
-and follow it with another numbered equation:
-\begin{equation}\sum_{i=0}^{\infty}x_i=\int_{0}^{\pi+2} f\end{equation}
-just to demonstrate \LaTeX's able handling of numbering.
-
-\subsection{Citations}
-Citations to articles \cite{bowman:reasoning, clark:pct, braams:babel, herlihy:methodology},
-conference
-proceedings \cite{clark:pct} or books \cite{salas:calculus, Lamport:LaTeX} listed
-in the Bibliography section of your
-article will occur throughout the text of your article.
-You should use BibTeX to automatically produce this bibliography;
-you simply need to insert one of several citation commands with
-a key of the item cited in the proper location in
-the \texttt{.tex} file \cite{Lamport:LaTeX}.
-The key is a short reference you invent to uniquely
-identify each work; in this sample document, the key is
-the first author's surname and a
-word from the title.  This identifying key is included
-with each item in the \texttt{.bib} file for your article.
-
-The details of the construction of the \texttt{.bib} file
-are beyond the scope of this sample document, but more
-information can be found in the \textit{Author's Guide},
-and exhaustive details in the \textit{\LaTeX\ User's
-Guide}\cite{Lamport:LaTeX}.
-
-This article shows only the plainest form
-of the citation command, using \texttt{{\char'134}cite}.
-This is what is stipulated in the SIGS style specifications.
-No other citation format is endorsed.
-
-\subsection{Tables}
-Because tables cannot be split across pages, the best
-placement for them is typically the top of the page
-nearest their initial cite.  To
-ensure this proper ``floating'' placement of tables, use the
-environment \textbf{table} to enclose the table's contents and
-the table caption.  The contents of the table itself must go
-in the \textbf{tabular} environment, to
-be aligned properly in rows and columns, with the desired
-horizontal and vertical rules.  Again, detailed instructions
-on \textbf{tabular} material
-is found in the \textit{\LaTeX\ User's Guide}.
-
-Immediately following this sentence is the point at which
-Table 1 is included in the input file; compare the
-placement of the table here with the table in the printed
-dvi output of this document.
-
-\begin{table}
-\centering
-\caption{Frequency of Special Characters}
-\begin{tabular}{|c|c|l|} \hline
-Non-English or Math&Frequency&Comments\\ \hline
-\O & 1 in 1,000& For Swedish names\\ \hline
-$\pi$ & 1 in 5& Common in math\\ \hline
-\$ & 4 in 5 & Used in business\\ \hline
-$\Psi^2_1$ & 1 in 40,000& Unexplained usage\\
-\hline\end{tabular}
-\end{table}
-
-To set a wider table, which takes up the whole width of
-the page's live area, use the environment
-\textbf{table*} to enclose the table's contents and
-the table caption.  As with a single-column table, this wide
-table will ``float" to a location deemed more desirable.
-Immediately following this sentence is the point at which
-Table 2 is included in the input file; again, it is
-instructive to compare the placement of the
-table here with the table in the printed dvi
-output of this document.
-
-
-\begin{table*}
-\centering
-\caption{Some Typical Commands}
-\begin{tabular}{|c|c|l|} \hline
-Command&A Number&Comments\\ \hline
-\texttt{{\char'134}alignauthor} & 100& Author alignment\\ \hline
-\texttt{{\char'134}numberofauthors}& 200& Author enumeration\\ \hline
-\texttt{{\char'134}table}& 300 & For tables\\ \hline
-\texttt{{\char'134}table*}& 400& For wider tables\\ \hline\end{tabular}
-\end{table*}
-% end the environment with {table*}, NOTE not {table}!
-
-\subsection{Figures}
-Like tables, figures cannot be split across pages; the
-best placement for them
-is typically the top or the bottom of the page nearest
-their initial cite.  To ensure this proper ``floating'' placement
-of figures, use the environment
-\textbf{figure} to enclose the figure and its caption.
-
-This sample document contains examples of \textbf{.eps}
-and \textbf{.ps} files to be displayable with \LaTeX.  More
-details on each of these is found in the \textit{Author's Guide}.
-
-\begin{figure}
-\centering
-\epsfig{file=fly.eps}
-\caption{A sample black and white graphic (.eps format).}
-\end{figure}
-
-\begin{figure}
-\centering
-\epsfig{file=fly.eps, height=1in, width=1in}
-\caption{A sample black and white graphic (.eps format)
-that has been resized with the \texttt{epsfig} command.}
-\end{figure}
-
-
-As was the case with tables, you may want a figure
-that spans two columns.  To do this, and still to
-ensure proper ``floating'' placement of tables, use the environment
-\textbf{figure*} to enclose the figure and its caption.
-
-Note that either {\textbf{.ps}} or {\textbf{.eps}} formats are
-used; use
-the \texttt{{\char'134}epsfig} or \texttt{{\char'134}psfig}
-commands as appropriate for the different file types.
-
-\subsection{Theorem-like Constructs}
-Other common constructs that may occur in your article are
-the forms for logical constructs like theorems, axioms,
-corollaries and proofs.  There are
-two forms, one produced by the
-command \texttt{{\char'134}newtheorem} and the
-other by the command \texttt{{\char'134}newdef}; perhaps
-the clearest and easiest way to distinguish them is
-to compare the two in the output of this sample document:
-
-This uses the \textbf{theorem} environment, created by
-the\linebreak\texttt{{\char'134}newtheorem} command:
-\newtheorem{theorem}{Theorem}
-\begin{theorem}
-Let $f$ be continuous on $[a,b]$.  If $G$ is
-an antiderivative for $f$ on $[a,b]$, then
-\begin{displaymath}\int^b_af(t)dt = G(b) - G(a).\end{displaymath}
-\end{theorem}
-
-The other uses the \textbf{definition} environment, created
-by the \texttt{{\char'134}newdef} command:
-\newdef{definition}{Definition}
-\begin{definition}
-If $z$ is irrational, then by $e^z$ we mean the
-unique number which has
-logarithm $z$: \begin{displaymath}{\log e^z = z}\end{displaymath}
-\end{definition}
-
-\begin{figure}
-\centering
-\psfig{file=rosette.ps, height=1in, width=1in,}
-\caption{A sample black and white graphic (.ps format) that has
-been resized with the \texttt{psfig} command.}
-\end{figure}
-
-Two lists of constructs that use one of these
-forms is given in the
-\textit{Author's  Guidelines}.
-
-\begin{figure*}
-\centering
-\epsfig{file=flies.eps}
-\caption{A sample black and white graphic (.eps format)
-that needs to span two columns of text.}
-\end{figure*}
-and don't forget to end the environment with
-{figure*}, not {figure}!
+The ext4 file system is a well-established commodity filesystem which builds upon the previous ext3 and ext2 filesystems and serves as the default in many Linux distributions, including the common consumer Ubuntu distribution.  In addition, as companies have come to use commodity hardware and software to build large-scale systems, ext4 has begun to see use as an underpinning of distributed file systems in corporate or research environments.
+It is thus desirable that ext4 provide strong performance in a variety of situations.  Though there are many components to a filesystem that decide performance, a significant piece of the puzzle is the file system's block allocation policy – where on the disk it places data blocks for files.  Failure to lay out files in a contiguously or in line with logical file layout can lead to additional seeks due to fragmentation, reducing performance.
  
-There is one other similar construct environment, which is
-already set up
-for you; i.e. you must \textit{not} use
-a \texttt{{\char'134}newdef} command to
-create it: the \textbf{proof} environment.  Here
-is a example of its use:
-\begin{proof}
-Suppose on the contrary there exists a real number $L$ such that
-\begin{displaymath}
-\lim_{x\rightarrow\infty} \frac{f(x)}{g(x)} = L.
-\end{displaymath}
-Then
-\begin{displaymath}
-l=\lim_{x\rightarrow c} f(x)
-= \lim_{x\rightarrow c}
-\left[ g{x} \cdot \frac{f(x)}{g(x)} \right ]
-= \lim_{x\rightarrow c} g(x) \cdot \lim_{x\rightarrow c}
-\frac{f(x)}{g(x)} = 0\cdot L = 0,
-\end{displaymath}
-which contradicts our assumption that $l\neq 0$.
-\end{proof}
+We chose to investigate ext4's block allocation policies in the hopes that they would prove to be well-defined and effective, so that programmers working on top of ext4 would be able to take advantage of ext4's behavior.  Unfortunately, we find that ext4's policies are complicated and not necessarily well-defined; for example, examination of the source code finds suggestions that aspects of ext4 policy are ad-hoc and only obscurely exposed to the user.
+ 
+In order to examine ext4's block allocation in practice, we developed a framework which generates configurable workloads which provide varying write patterns for a given file; by using this framework, we are able to expose some irregularities of ext4's block allocation policy.  In particular, we use this data to discuss ext4's policies and their lack of consistency in comparison with two other major file systems, XFS and Btrfs, and show that ext4's block allocation is significantly more varied for the same file written in various ways compared to these systems.
+ 
+Examining ext4's policy in more detail reveals that a multitude of factors play into how a file has space allocated to it.  We discuss policies that decide block layout based on the current CPU, the size of the allocation, the size of the file, whether the allocation is the final block in the file, whether the request is aligned to an appropriate size, and whether the block is the head of a flex group (an ext4 structure to be discussed below).  In each case, we argue that the policy in question has at least the potential to cause poor performance or layout.
+ 
+Finally, we focus our efforts and provide an example of how ext4 policy can affect a higher-level system.  We present the case of running the distributed Hadoop File System (HDFS) on top of ext4 and discuss how ext4's policies can degrade performance in such a system.  Though our proposed policy change is specialized, it provides recognizable improvement in the HDFS use case; however, it does stumble in more generalized benchmarks.  We believe this serves as an example of the difficulties of policy decisions and the need to maintain well-defined, understandable policies.
+ 
+The rest of the paper continues as follows.  Section 2 provides an overview of related work on block allocation and ext4 policy.  Section 3 discusses the structure of ext4 as it relates to block allocation, as well as some high-level policies ext4 attempts to implement.  Section 4 discusses our methodology for studying general block allocation in ext4.  Section 5 compares ext4 to other file systems and discusses issues we have uncovered in ext4's block allocation policy.  Section 6 presents a concrete change to policy (the aforementioned HDFS case) and corresponding results.  Section 7 discusses future work and section 8 concludes.
 
-Complete rules about using these environments and using the
-two different creation commands are in the
-\textit{Author's Guide}; please consult it for more
-detailed instructions.  If you need to use another construct,
-not listed therein, which you want to have the same
-formatting as the Theorem
-or the Definition\cite{salas:calculus} shown above,
-use the \texttt{{\char'134}newtheorem} or the
-\texttt{{\char'134}newdef} command,
-respectively, to create it.
 
-\subsection*{A {\secit Caveat} for the \TeX\ Expert}
-Because you have just been given permission to
-use the \texttt{{\char'134}newdef} command to create a
-new form, you might think you can
-use \TeX's \texttt{{\char'134}def} to create a
-new command: \textit{Please refrain from doing this!}
-Remember that your \LaTeX\ source code is primarily intended
-to create camera-ready copy, but may be converted
-to other forms -- e.g. HTML. If you inadvertently omit
-some or all of the \texttt{{\char'134}def}s recompilation will
-be, to say the least, problematic.
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Related work}
+\subsection{Parallels between memory allocation and ext4 disk allocation}
+The potential for similar strategies being reused between disk allocation and memory allocation has been recognized in past work.  Many memory allocation mechanisms have two layers: a 'slab allocator' and a 'buddy allocator'.  The slab allocator can improve allocation efficiency and reduce internal fragmentation; within the allocator, a cache is defined which serves as storage for a certain type, such as semaphores, files and so on.  A 'slab' is taken to be the unit of space that a cache increases or shrinks by; generally, it consists of one or more pages. To reduce fragmentation, there are two kinds of slabs - small slabs and big slabs.  A small slab is exactly one page and is used for memory objects that is less than 1/8 of a page; if the object is larger, big slabs that can be more than one page are used [1].
+ 
+Ext4 has similar designs that aim to reduce fragmentation [2].  At a high level, blocks of small files and big files are allocated from different places - small file blocks are allocated from group preallocation space, where blocks of different files are packed together. In this layout, no holes are reserved.  Large file blocks are allocated from inode preallocation space; this space is reserved ahead of time for a specific file and cannot be used by other files.  This layout allows holes between files. The authors claim the policy improves locality and reduces fragmentation. Thus ext4's allocation policies serve as mirrors of the different slab sizes.  Similarly, as slabs may belong to different CPU, node, etc, preallocated disk blocks may belong to different CPUs, block groups, files, or directories.  Essentially, slab and preallocation are both pools with free and in-use spaces for management purpose. 
 
-\section{Conclusions}
-This paragraph will end the body of this sample document.
-Remember that you might still have Acknowledgments or
-Appendices; brief samples of these
-follow.  There is still the Bibliography to deal with; and
-we will make a disclaimer about that here: with the exception
-of the reference to the \LaTeX\ book, the citations in
-this paper are to articles which have nothing to
-do with the present subject and are used as
-examples only.
-%\end{document}  % This is where a 'short' article might terminate
 
-%ACKNOWLEDGMENTS are optional
+In the memory allocation model, a more fine-grained buddy allocator
+ is present beneath the slab allocator.  In this buddy allocator, 
+ the memory space is divided into sizes of order $2^{N}$.  For example, 
+ a 1MB memory initially has $2^{8}$ free pages contiguously; to serve 
+ requests, the free memory may be divided into sizes of smaller orders. 
+ For example, to server a request of size 512KB ($2^{7}$ pages), the $2^{8}$ 
+ free pages are divided into half (two parts, each has $2^{7}$ pages). This 
+ first part is allocated to the program, and second half is left unused. 
+ Later, when the space is freed, the allocator will check its neighbors 
+ to see if they can be merged to a bigger free space. Ext4 also makes 
+ use of a buddy allocator, but only for large requests that are aligned 
+ to sizes of $2^{N}$. If the requests are not aligned, the disk is scanned 
+ to collect enough free space to satisfy the request.  To minimize file 
+ system fragmentation, ext4 has an online defragment tool which is 
+ invoked by users periodically to reorganize files [3].
+
+  
+Justification for the concept of a buddy allocator can be found in the work of Wilson et. al.  In their 1995 survey of memory allocators, they reviewed a variety of possible allocation strategies and made note of the popularity of the buddy allocator due to its simplicity and speed [4].  Several buddy system variations are introduced in [5]; however, the high internal and external fragmentation that resulted made it unattractive to disk allocations. In [6], Koch addressed the problem by offering the idea of allocating a file up to limited extents and reallocating non-optimal files. In ext4, as mentioned above, the problem is addressed via relying on buddy allocations only when requests are aligned among a power-of-two boundary.
+
+\subsection{Known limitations in allocation}
+Ext4 is recognized by its development community as an imperfect system.  Although it makes attempts to provide locality through methods such as grouping based on directory location, current discussions amongst the developers make note of issues such as an over-reliance on directory-based locality resulting in allocation of small, fragmented extents when large ones may be open one group over [7] and the need for users to be able to provide hints to the allocator as to the characteristics of the files they are writing through the fallocate() call [8].
+
+\subsection{Comparison with Btrfs}
+Ext4 has also been compared to Btrfs, a modern file system which makes use of B+ trees for its structure.  Although Btrfs makes use of delayed allocation like ext4, Btrfs makes use of 'allocation groups' - portions of space specifically marked for use on different types of data (eg. 'system' data which comprises the backbone of the file system, file metadata, and file data).  A tree describing free space in these groups is kept in memory and used to find just enough space in the data case or enough space plus a 64KB buffer in the metadata case.  Small files (<4KB) are in fact stored within the metadata blocks, rather than separately on disk [9].  Though the two filesystems display comparable performance (subject to some variations) [10], comparing these two file systems helps us in understanding the tradeoffs of block allocation.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{ext4 background}
+\subsection{Data structure}
+Ext4 builds off of the work of the previous ext file systems.  It carries over several of the fundamental data structures introduced in those systems, such as the superblock, bitmaps for block and inode allocation, and inode tables.  As in ext2 and ext3, the superblock maintains global information (such as block size) needed by the FS, and block and inode bitmaps indicate free blocks and entries in the inode tables, respectively.  In addition, the disk is divided into 'block groups' of a size defined in the superblock; in a default ext4 system with 4KB blocks, each block group is 16 MB.
+ 
+Ext4 also introduces a new feature, the flexible block group (flex\_bg).  A single flex\_bg contains multiple standard block groups, with the block/inode bitmaps and inode tables of all block groups placed within the first block group.  Although this means the first block group in the flex\_bg uses more space on storing this metadata, the remaining groups need not store that metadata, potentially allowing better file contiguity due to no interruptions from metadata.  (Data blocks may still be interrupted by copies of the superblock; ext4 allows the user to specify how sparsely or densely the superblock is replicated.)
+
+\subsection{Extent-based file system}
+In previous ext file systems, the data blocks of a file were pointed to by indirect blocks - metadata blocks containing pointers to other indirect blocks and ultimately the data blocks of the file itself.  Thus, metadata size for a file was proportional to the number of blocks.
+ 
+ 
+Ext4 avoids this issue by making use of extents rather than indirect blocks for most files.  An extent is a contiguous space on disk consisting of one or more blocks, represented as a pair (start block, length).  In ext4, a 4KB block size allows for extents up to 128MB; for comparison, a non-extent-based system would require 32,678 pointers to reference the same number of blocks.  Thus ext4 is able to dramatically reduce the amount of metadata needed for individual files.
+
+\subsection{Delayed allocation and multi-block allocation}
+ext4 allocates disk blocks lazily. It buffers data in memory and allocates disk blocks when flushing. The flushing happe	ns when the user program calls flushing system calls, such as fsync(), sync(), or the operating system flushing daemon takes effect (e.g. pdflush).
+ 
+Ext4 attempts to avoid unnecessary I/O by allocating disk blocks lazily.  Upon writes, it buffers the data in memory and allocates physical space on disk only when a flush is initiated through system calls such as fsync() or sync().
+ 
+In tandem delayed allocation, ext4 also attempts to reduce I/O traffic and fragmentation by allocating multiple blocks at once rather than each block individually.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Analyzer framework}
+In order to examine ext4's block allocation policies, we needed to conduct a variety of file experiments.  In order to automate this process, we have built a framework designed to enable quick definition and execution of experiments; see Figure~\ref{fig:buddy-cache-prealloc}.
+
+\begin{figure}[ht]
+    \includegraphics
+    	[trim=0mm 0mm 0mm 0mm, clip, width=80mm]
+    	{framework}
+    \caption{cap}
+    \label{fig:framework}
+\end{figure}
+
+The Workload Generator generates workloads and save them to files formatted as one operation per line. Each operation is represented as:
+
+pid;operation;filepath;parameters
+
+For example, 0;write;./dir.001/file002;10;20 means ``the first process writes 20 bytes to offset 10 of ./dir.001/file002''
+
+The Workload Player takes the workload files as input. It parses each line, executes the operations, and logs any errors or warnings to help ensure correctness.  To help speed up the process, workload files are often saved to a temporary file system in RAM and read by the player from there.
+ 
+We separate the Workload Generator and Workload Player for flexibility. The generator is written in Python; the large number of packages available for the language make it simple to generate new workloads The player is written in C++ and makes use of MPI (Message Passing Interface). Using C++ allows us to interact with the operating system directly, whileMPI provides convenient synchronization between processes. Although it would be possible to combine the generator and player in a single C/C++ program, this approach would limit our flexibility because prototyping in C/C++ is more difficult and interacting with the test manager (written in Python) would require additional glue code.
+ 
+The FS Manipulator is used to prepare the file system for testing; it handles tasks such as formatting, fragmenting, and aging the file system. The FS Monitor is the component that collects internal metadata of the file system. It makes use of ext4 utilities such as debugfs, dumpe2fs; for example, it uses dump\_extents in debugfs to retrieve physical locations of extents. The FS Monitor can save the collected information to files for offline analyzing (by R, a statistical programming language) or send it directly to the Analyzer. The Analyzer analyzes the information and sends the results to Test Manager as feedback; the Test Manager can then decide future tests based off of the results. Thus our components – the Test Manager, Workload Generator, Workload Player, File System, FS Monitor, and Analyzer - form a consistent feedback loop. We believe this loop  will serve well in performing sophisticated model checking in the future.
+ 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Issues in ext4 policy}
+\subsection{Comparison of block allocation in ext4, XFS, and Btrfs}
+
+In order to explore issues in ext4 block allocation, we began by comparing block allocation between ext4, XFS, and Btrfs. In our most prominent  test, we write a single file with different patterns on an empty file system 4 GB in size.  For faster testing and to avoid any interference from the hardware, we ran these tests in a RAM disk.  
+ 
+The write patterns vary in write order, fsync call frequency, and open-close-sync frequency. For our test, we divide a test file into three chunks: C0, C1, and C2. We can then vary our patterns in a variety of ways:
+\begin{itemize}
+	\item         With regards to write order, we can write in the order of C0-C1-C2, C0-C2-C1, and so on.
+	\item       With regards fsync call frequency, we can do CX-fsync-CX-CX, CX-fsync-CX-fsync-CX, and so on.
+	\item       With regards to open-sync-close frequency, we can do open-CX-CX-CX-close-sync, or open-CX-close-sync-open-CX-close-sync-open-CX-close-sync.
+\end{itemize}
+    
+A given combination of write order, fsync call frequency, and open-close-sync frequency forms a complete write pattern. For example, open-writeC1-fsync-writeC3-close-sync-open-writeC1-close-sync is one complete pattern. Note that although both fsync and sync calls will force the file data to disk, they trigger different issues of block allocation.
+
+For our comparison, we wrote files with different patterns and recorded the physical span of file data; we refer to this as the d-span.  We argue that d-span is a good indicator of file locality, as it provides a quantifiable measure of  how the data of a file is spread out on disk. Figure X shows the resulting d-spans for different writing patterns. For each file size, we tested 196 (double check?) different write patterns; each pattern corresponds to a data point on the graph of that file size. In addition to the individual data points, we display box plots to show the distribution of d-span across various patterns. For example, when the file size is 12KB, the box plot shows the median is at 2MB, and indeed most of the write patterns for 12KB files have a d-span larger than 2MB.  More importantly, this figure shows that ext4 block allocation is significantly more inconsistent than XFS and Btrfs. In the following subsections, we will discuss a number of ext4 policies we believe contribute to this inconsistent behavior.
+
+
+\begin{figure}[ht]
+    \includegraphics
+    	[trim=0mm 0mm 0mm 0mm, clip, width=80mm]
+    	{side-by-side-d-span}
+    \caption{cap}
+    \label{fig:side-by-side-d-span}
+\end{figure}
+
+
+
+\subsection{Preallocation}
+ext4 reserves disk space for files in memory, a strategy called 'preallocation' in memory. This means disk space is tagged as usable exclusively for certain files in the in-memory data structures; however, they are not tagged in any way on disk.
+ 
+There are two types of preallocations - group preallocation and inode preallocation. Group preallocation is for small files; what constitutes a 'small file' can be defined as part of the ext4 configuration in /sys/fs/ext4/<disk>/mb\_stream\_req.   By default, ext4 defines 16 blocks to be the threshold; for ease of discussion, we use this default value alongside the default block size of 4KB and define a small file as 64KB in the below discussion.  Each CPU has its own group preallocation space shared by all small files. Inode preallocation, meanwhile, is used for large files and cannot be shared by multiple files; any inode preallocation takes place on a per-file basis.
+
+\begin{figure}[ht]
+    \includegraphics
+    	[trim=0mm 0mm 0mm 0mm, clip, width=80mm]
+    	{buddy-cache-prealloc}
+    \caption{cap}
+    \label{fig:buddy-cache-prealloc}
+\end{figure}
+
+
+Figure~\ref{fig:buddy-cache-prealloc} shows the space management system in memory.  Ext4 makes use of a buddy cache which marks free and non-free disk spaces and handles allocation decisions. Group and inode preallocation spaces are also allocated out of this buddy cache. When the file system is mounted, the free space and non-free space are identical to what the on-disk block bitmaps indicate. As files are created, some free spaces in the buddy cache are marked as non-free and tagged as preallocation spaces; file data blocks are then allocated out of group preallocation space, inode preallocation space, or free space in the buddy cache, depending on factors such as file size and block position in file.
+
+\subsection{Normalization}
+Normalization is the process of deciding how much extra space should be reserved for preallocation.  ext4 performs preallocation differently depending on the current file size. For small files, if currently there is no group preallocation, 512 blocks (default) will be allocated out of the buddy cache’s free space to serve as a new shared group preallocation . If the current file size is larger than 64KB (in the default case), the preallocation is done following Table X.
+
+\begin{center}
+    \begin{tabular}{ | l | p{5cm} |}
+    \hline
+    Cases & Actions  \\ \hline
+    File size <=64KB & Small file, use group preallocation \\ \hline
+    File size <=1MB & Preallocate $2^{ceiling(log(2, filesize))}$ \\ \hline
+    File size <=4MB & Preallocate 2MB, align to $2\times X$ MB \\ \hline
+    File size <=8MB & Preallocate 4MB, align to $4\times X$ MB \\ \hline
+    Request size <=8MB & Preallocate 8MB, align to $8\times X$ MB[7]  \\ \hline
+    Others & No preallocation \\ \hline
+    \end{tabular}
+\end{center}
+
+\subsection{Small file/big file threshold}
+Though these normalization threshold seem well-defined, they mask an issue which occurs when a file crosses the threshold between 'small' and 'big'.  While the file is less than 64 KB in size, its data blocks are allocated from the group preallocation space; however, if it later grows past that size, it must place its blocks elsewhere on disk based on its inode preallocation.  As group preallocation spaces can be distant from other free space on the disk, this runs the risk of significant gaps in the file data; indeed, we observe just this issue in section 5.1, where this behavior is often responsible for the files being stripped across over gigabytes of disk.
+
+\subsection{The Tail Effect}
+ext4 allocates the last block of a file differently when the file is no longer opened by anyone; specifically, this last block will not trigger preallocation. We guess that the motivation of this behavior is that, since the status of a file is final (nobody can change it until next open), there is no need to reserve any additional space for it. This motivation is valid; however, when it is implemented, this causes inconsistent allocation for the tail and previous blocks, particularly in small files.
+
+We consider the case of a small file with a logical hole in the file.  The blocks before the hole are allocated from group preallocation; however, the final block (tail) is allocated from buddy cache free space directly (not using existing group preallocation) since it does not need preallocation. For example, if we do:
+
+open(file1)
+write(file1, 0, 4096) //chunk 0
+write(file1, 8192, 4096) //chunk 1
+close(file1)
+
+Chunk 0 is allocated from group preallocation space, while chunk 1 is allocated from outside of group preallocation space. Since the group preallocation space is usually 2MB,  Chunk 0 and Chunk 1 are potentially about 2MB away from each other. Indeed, most of the 2MB d-span in Figure X is caused by this 'tail effect'. Similarly, big files can also exhibit this effect, as their final writes will have space allocated directly from the buddy cache rather than preallocated as the rest of the file was.
+
+\subsection{Large file block group selection}
+ext4 tries to allocate the first block of a small file to the same block group as its inode. However, for large files, the file system does not try to keep the data blocks of a file and its inode close; instead, it puts the first block of a big file to the block group where the previous big file block is allocated. The implication of this policy is that many new large files will be put into the same block group, and the extents of these files may become interleaved with each other if they grow together and are frequently synced.  We explore this behavior in more detail below in section 6.
+
+\subsection{Small file CPU affinity}
+In ext4, each CPU has its own group preallocation space; small files written by a given CPU have space allocated from the group preallocation of that CPU.  The motivation of attaching group preallocation to CPU was scalability – as each CPU has its own space and threads on different CPUs may not be likely to write to the same small file, this would reduce contention. However, this also implies that if the writer process switches to a different CPU, blocks newly written and forced to disk will be placed in a different preallocation space than their predecessors. We acknowledge this is not necessarily a common case, but it is still a potential source of fragmentation.
+
+\subsection{Extent tree block allocation}
+The extent tree block (ETB) is the block that holds pointers to data extents. In early versions of ext4, the ETB was allocated closely to the file's data extents; with this policy, the ETB could break the continuity of data blocks, as it would be mixed in with the data blocks. A patch in 2011 changed the policy to place the ETB close to inodes; however, we argue this introduces a new problem. In the case of large files, ext4 does not keep data blocks close to inodes; thus, data blocks are far away from both inodes and ETB. This potentially causes more, longer disk seeks. That said, as files rarely have a large number of extents, the number of ETBs are similarly unlikely to be large; thus we hope the number of long disk seeks should be low in real world.
+
+\subsection{Alignment}
+The alignment of a requested allocation makes a difference as well; in particular, requests of sizes that are aligned to $2^x$ blocks may be allocated differently than the ones that are not aligned. For example, aligned requests, such as a request of 512 blocks, cannot be allocated from the head block group of a flex group, but non-aligned requests, such as a request of 511 blocks, can. This may lead to inconsistent block allocations for a file if the file is written with both aligned and non-aligned block requests - some blocks may be placed in the head block group of the flex group, while some blocks may not not.
+
+\subsection{Head block groups}
+In the source code, the head block group of a flex group is intended to be used for directory data (as well as bitmaps, inode table) so that directory data has better locality. With this, commands like find will be faster, thanks to the short seek distance. However, the head block group of a flex group is occasionally also used for non-aligned data block requests, as mentioned above, potentially interleaving directory data and unrelated file data. We are not sure if this is an intended behavior or if they neglected to note such an effect; regardless, it is a counter-intuitive (to us) behavior and suggests a muddled policy.
+
+\subsection{Implications for SSDs}
+As a final note, we consider the case of SSDs.  While it is true that SSDs are good at random accesses, file locality can be important in a different way.  Recall that in SSDs, space is divided into blocks, which are further divided into pages. Data can be written directly into an empty page, but only whole blocks can be erased. Thus, if a file is spread widely, when we want to overwrite the file, we need to touch every block that has the file's data, triggering more read-erase-write cycles and shortening the life of the SSD.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{HDFS and ext4: a case study}
+
+
+
+
+
+
+
+
 \section{Acknowledgments}
-This section is optional; it is a location for you
-to acknowledge grants, funding, editing assistance and
-what have you.  In the present case, for example, the
-authors would like to thank Gerald Murray of ACM for
-his help in codifying this \textit{Author's Guide}
-and the \textbf{.cls} and \textbf{.tex} files that it describes.
+aaaaaa
 
 %
 % The following two commands are all you need in the
@@ -521,51 +337,5 @@ and the \textbf{.cls} and \textbf{.tex} files that it describes.
 %
 %APPENDICES are optional
 %\balancecolumns
-\appendix
-%Appendix A
-\section{Headings in Appendices}
-The rules about hierarchical headings discussed above for
-the body of the article are different in the appendices.
-In the \textbf{appendix} environment, the command
-\textbf{section} is used to
-indicate the start of each Appendix, with alphabetic order
-designation (i.e. the first is A, the second B, etc.) and
-a title (if you include one).  So, if you need
-hierarchical structure
-\textit{within} an Appendix, start with \textbf{subsection} as the
-highest level. Here is an outline of the body of this
-document in Appendix-appropriate form:
-\subsection{Introduction}
-\subsection{The Body of the Paper}
-\subsubsection{Type Changes and  Special Characters}
-\subsubsection{Math Equations}
-\paragraph{Inline (In-text) Equations}
-\paragraph{Display Equations}
-\subsubsection{Citations}
-\subsubsection{Tables}
-\subsubsection{Figures}
-\subsubsection{Theorem-like Constructs}
-\subsubsection*{A Caveat for the \TeX\ Expert}
-\subsection{Conclusions}
-\subsection{Acknowledgments}
-\subsection{Additional Authors}
-This section is inserted by \LaTeX; you do not insert it.
-You just add the names and information in the
-\texttt{{\char'134}additionalauthors} command at the start
-of the document.
-\subsection{References}
-Generated by bibtex from your ~.bib file.  Run latex,
-then bibtex, then latex twice (to resolve references)
-to create the ~.bbl file.  Insert that ~.bbl file into
-the .tex source file and comment out
-the command \texttt{{\char'134}thebibliography}.
-% This next section command marks the start of
-% Appendix B, and does not continue the present hierarchy
-\section{More Help for the Hardy}
-The acm\_proc\_article-sp document class file itself is chock-full of succinct
-and helpful comments.  If you consider yourself a moderately
-experienced to expert user of \LaTeX, you may find reading
-it useful but please remember not to change it.
-\balancecolumns
 % That's all folks!
 \end{document}
